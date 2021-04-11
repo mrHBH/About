@@ -1,0 +1,478 @@
+﻿@using System.Threading
+@inherits LiveComponentBase<OnlineRoom.Model, OnlineRoom.LocalsModel>
+@inject IChatService ChatService
+@inject ClientState ClientState
+@inject NavigationManager Navigator
+@inject IJSRuntime JSRuntime
+
+@using System.Text.RegularExpressions
+@using System.ComponentModel.DataAnnotations
+
+@{
+    var locals = Locals.Value;
+    var state = State.LastValue;
+    var lastPage = state.LastPage;
+    var error = State.Error;
+    var actualUserName = state.ChatUser?.Name;
+}
+
+
+
+
+<MudCard>
+    <MudCardMedia Image="https://source.unsplash.com/1600x900/?mars" />
+    <MudCardContent>
+        <h1 class="display-4">
+           Online Chat Room
+            <a href="https://digitalPlayground.ben-hassen.com" target="_blank"></a> 
+        </h1>
+  
+        <MudText Typo="Typo.body2">This component loads the C# reference to perform queries to the data base and to remote api's </MudText>
+        <MudText Typo="Typo.body2">Try sending an empty message to see it in action!</MudText>
+        
+                @if (locals.Error != null) {
+                    <div class="alert alert-danger" role="alert">
+                        @locals.Error.Message
+                    </div>
+                }
+                @if (error != null) {
+                    <div class="alert alert-warning" role="alert">
+                        Update error: @error.Message
+                    </div>
+                }
+                <form @onsubmit="SetNameAsync">
+                    @if (actualUserName != locals.Name) {
+                        <div class="input-group-prepend pb-1">
+                            @if (@actualUserName == null) {
+                                <span class="badge btn-warning">Creating user...</span>
+                
+                            } else {
+                                <span class="badge btn-primary">Current name: @actualUserName</span>
+                            }
+                        </div>
+                    }
+
+                                            <MudGrid>
+                            <MudItem xs="12" sm="6" md="3">
+                                    <MudTextField @bind-Value="@locals.Name"  Immediate="true" Label="Your Name" Variant="Variant.Outlined" Adornment="Adornment.End"   AdornmentColor="Color.Info" />
+
+                            </MudItem>
+
+
+
+<div style="max-width: 400px;">
+    <MudCard>
+        <MudCardContent>
+            <MudForm @ref="form" @bind-IsValid="@success" @bind-Errors="@errors">
+                <MudTextField T="string" Label="Username" Required="true" RequiredError="User name is required!"/>
+                <MudTextField T="string" Label="Email" Required="true" RequiredError="Email is required!"
+                              Validation="@(new EmailAddressAttribute() {ErrorMessage = "The email address is invalid"})"/>
+                <MudTextField T="string" Label="Password" HelperText="Choose a strong password" @ref="pwField1"
+                              InputType="InputType.Password"
+                              Validation="@(new Func<string, IEnumerable<string>>(PasswordStrength))" Required="true"
+                              RequiredError="Password is required!"/>
+                <MudTextField T="string"
+                              Label="Password" HelperText="Repeat the password" InputType="InputType.Password"
+                              Validation="@(new Func<string, string>(PasswordMatch))"/>
+                <div class="d-flex">
+                    <MudRadioGroup T="string" Required="true" RequiredError="Account type is required!">
+                        <MudRadio Option="@("Personal")">Personal</MudRadio>
+                        <MudRadio Option="@("Professional")">Professional</MudRadio>
+                    </MudRadioGroup>
+                </div>
+                <MudCheckBox T="bool" Required="true" RequiredError="You must agree" Class="ml-n2"
+                             Label="I agree that MudBlazor is awesome!"/>
+            </MudForm>
+        </MudCardContent>
+        <MudCardActions>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(!success)" Class="ml-auto">Register</MudButton>
+        </MudCardActions>
+    </MudCard>
+    
+    <MudPaper Class="pa-4 justify-center my-4 mud-text-align-center">
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="@(()=>form.Validate())">Validate</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="@(()=>form.Reset())" Class="mx-2">Reset</MudButton>
+        <MudButton Variant="Variant.Filled" OnClick="@(()=>form.ResetValidation())">Reset Validation</MudButton>
+    </MudPaper>
+
+    <MudExpansionPanels>
+        <MudExpansionPanel Text="@($"Show Errors ({errors.Length})")">
+            @foreach (var error in errors)
+            {
+                <MudText Color="@Color.Error">@error</MudText>
+            }
+        </MudExpansionPanel>
+    </MudExpansionPanels>
+</div>
+
+
+
+
+
+
+                            
+                            
+                        
+                        </MudGrid>
+                    <div class="input-group pb-3">
+                        <div class="input-group-prepend">
+                            <span class="input-group-text">Your name</span>
+                        </div>
+                        <input class="form-control" @bind-value="@locals.Name" @bind-value:event="oninput" />
+                        <div class="input-group-append">
+                            <button type="submit" class="btn btn-warning">Change</button>
+                        </div>
+                    </div>
+                </form>
+                <MudTable Items="@lastPage.Messages" Dense="true" FixedHeader="@true" Height="@(true?"400px":"")">
+                    <HeaderContent>
+                        <MudTh>User</MudTh>
+                        <MudTh>Message</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                             <MudTd DataLabel="User">@lastPage.Users[context.UserId].Name </MudTd>
+                             <MudTd DataLabel="Message">@context.Text</MudTd>
+                        </RowTemplate>
+                    
+                     <PagerContent>
+                        <MudTablePager PageSizeOptions="new int[]{50, 100}" />
+                    </PagerContent>
+                </MudTable>
+        
+      
+                <StatefulComponentState Component="@this" />
+                       <form @onsubmit="SendMessageAsync">
+                            <div class="input-group pb-3">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text">Message</span>
+                                </div>
+                                <input class="form-control"
+                                    placeholder="No ideas? Send an empty one!"
+                                    @bind-value="locals.Message" />
+                                <div class="input-group-append">
+                                    <button type="submit" class="btn btn-success">Send</button>
+                                </div>
+                            </div>
+                        </form>
+    </MudCardContent>
+    <MudCardActions>
+        
+        <MudButton Variant="Variant.Text"  Color="Color.Primary">Reset</MudButton>
+       
+    </MudCardActions>
+</MudCard>
+
+
+
+@* <MudCard> *@
+@*       <MudText Typo="Typo.h5">Online Chat Room</MudText> *@
+@*     <MudCardContent> *@
+@*         <MudBadge Content=@(state.ActiveUserCount) Color="Color.Primary" Overlap="true"> *@
+@*             <MudIcon Icon="@Icons.Material.VerifiedUser" class="float-right" Color="Color.Default"/> *@
+@*         </MudBadge> *@
+@*         <MudBadge Content=@(state.UserCount) Color="Color.Primary" Overlap="true"> *@
+@*             <MudIcon Icon="@Icons.Material.Analytics" class="float-right" Color="Color.Default"/> *@
+@*         </MudBadge> *@
+@*       *@
+@*                  *@
+@*         <AuthorizeView> *@
+@*             <Authorized> *@
+@*                 <button class="btn btn-primary btn-sm" @onclick="SignOut">Sign out</button> *@
+@*             </Authorized> *@
+@*             <NotAuthorized> *@
+@*                 <button class="btn btn-warning btn-sm" @onclick="SignIn">Sign in</button> *@
+@*             </NotAuthorized> *@
+@*         </AuthorizeView> *@
+@*          *@
+@*         @if (locals.Error != null) { *@
+@*             <div class="alert alert-danger" role="alert"> *@
+@*                 @locals.Error.Message *@
+@*             </div> *@
+@*         } *@
+@*         @if (error != null) { *@
+@*             <div class="alert alert-warning" role="alert"> *@
+@*                 Update error: @error.Message *@
+@*             </div> *@
+@*         } *@
+@*         <form @onsubmit="SetNameAsync"> *@
+@*             @if (actualUserName != locals.Name) { *@
+@*                 <div class="input-group-prepend pb-1"> *@
+@*                     @if (@actualUserName == null) { *@
+@*                         <span class="badge btn-warning">Creating user...</span> *@
+@*          *@
+@*                     } else { *@
+@*                         <span class="badge btn-primary">Current name: @actualUserName</span> *@
+@*                     } *@
+@*                 </div> *@
+@*             } *@
+@*             <div class="input-group pb-3"> *@
+@*                 <div class="input-group-prepend"> *@
+@*                     <span class="input-group-text">Your name</span> *@
+@*                 </div> *@
+@*                 <input class="form-control" @bind-value="@locals.Name" @bind-value:event="oninput" /> *@
+@*                 <div class="input-group-append"> *@
+@*                     <button type="submit" class="btn btn-warning">Change</button> *@
+@*                 </div> *@
+@*             </div> *@
+@*         </form> *@
+@*         <MudTable Items="@lastPage.Messages" FixedHeader="@true" Height="@(true?"400px":"")"> *@
+@*             <HeaderContent> *@
+@*                 <MudTh>User</MudTh> *@
+@*                 <MudTh>Message</MudTh> *@
+@*             </HeaderContent> *@
+@*             <RowTemplate> *@
+@*                      <MudTd DataLabel="User">@lastPage.Users[context.UserId].Name </MudTd> *@
+@*                      <MudTd DataLabel="Message">@context.Text</MudTd> *@
+@*                 </RowTemplate> *@
+@*              *@
+@*              <PagerContent> *@
+@*                 <MudTablePager PageSizeOptions="new int[]{50, 100}" /> *@
+@*             </PagerContent> *@
+@*         </MudTable> *@
+@*     *@
+@*          *@
+@*         <StatefulComponentState Component="@this"/> *@
+@*          *@
+@*         <form @onsubmit="SendMessageAsync"> *@
+@*             <div class="input-group pb-3"> *@
+@*                 <div class="input-group-prepend"> *@
+@*                     <span class="input-group-text">Message</span> *@
+@*                 </div> *@
+@*                 <input class="form-control" *@
+@*                     placeholder="No ideas? Send an empty one!" *@
+@*                     @bind-value="locals.Message" /> *@
+@*                 <div class="input-group-append"> *@
+@*                     <button type="submit" class="btn btn-success">Send</button> *@
+@*                 </div> *@
+@*             </div> *@
+@*         </form> *@
+@* *@
+@*     </MudCardContent> *@
+@* </MudCard> *@
+@* *@
+@* <div> *@
+@*     <span class="float-right"> *@
+@*         <span class="badge btn-primary"> *@
+@*             @(state.ActiveUserCount) <span class="oi oi-chat"></span> *@
+@*         </span> *@
+@*         <span class="badge btn-light"> *@
+@*             @(state.UserCount) <span class="oi oi-people"></span> *@
+@*         </span> *@
+@*          *@
+@*     </span> *@
+@*     <h1>Chat</h1> *@
+@* </div> *@
+
+@* <div class="alert alert-primary"> *@
+@*     Open <a href="@Navigator.Uri" target="_blank">this page</a> or *@
+@*     <a href="/composition" target="_blank">Composition example</a> *@
+@*     in another window to see everything is updated in sync in real time. *@
+@*     Besides that, try to *@
+@*     <AuthorizeView> *@
+@*         <Authorized> *@
+@*             <button class="btn btn-primary btn-sm" @onclick="SignOut">Sign out</button> *@
+@*         </Authorized> *@
+@*         <NotAuthorized> *@
+@*             <button class="btn btn-warning btn-sm" @onclick="SignIn">Sign in</button> *@
+@*         </NotAuthorized> *@
+@*     </AuthorizeView> *@
+@* </div> *@
+@* @if (locals.Error != null) { *@
+@*     <div class="alert alert-danger" role="alert"> *@
+@*         @locals.Error.Message *@
+@*     </div> *@
+@* } *@
+@* @if (error != null) { *@
+@*     <div class="alert alert-warning" role="alert"> *@
+@*         Update error: @error.Message *@
+@*     </div> *@
+@* } *@
+@* *@
+@* <form @onsubmit="SetNameAsync"> *@
+@*     @if (actualUserName != locals.Name) { *@
+@*         <div class="input-group-prepend pb-1"> *@
+@*             @if (@actualUserName == null) { *@
+@*                 <span class="badge btn-warning">Creating user...</span> *@
+@* *@
+@*             } else { *@
+@*                 <span class="badge btn-primary">Current name: @actualUserName</span> *@
+@*             } *@
+@*         </div> *@
+@*     } *@
+@*     <div class="input-group pb-3"> *@
+@*         <div class="input-group-prepend"> *@
+@*             <span class="input-group-text">Your name</span> *@
+@*         </div> *@
+@*         <input class="form-control" @bind-value="@locals.Name" @bind-value:event="oninput" /> *@
+@*         <div class="input-group-append"> *@
+@*             <button type="submit" class="btn btn-warning">Change</button> *@
+@*         </div> *@
+@*     </div> *@
+@* </form> *@
+@* *@
+@* <table class="table table-sm table-striped"> *@
+@*     <thead> *@
+@*     <tr> *@
+@*         <th scope="col">User</th> *@
+@*         <th scope="col">Message</th> *@
+@*     </tr> *@
+@*     </thead> *@
+@*     <tbody> *@
+@*     @foreach(var message in lastPage.Messages) { *@
+@*         var user = lastPage.Users[message.UserId]; *@
+@*         { *@
+@*             <tr> *@
+@*                 <td style="width: 20%; max-width: 33%">@user.Name</td> *@
+@*                 <td style="width: auto; min-width: 67%">@message.Text</td> *@
+@*             </tr> *@
+@*         } *@
+@*     } *@
+@*     </tbody> *@
+@* </table> *@
+@* *@
+@* <form @onsubmit="SendMessageAsync"> *@
+@*     <div class="input-group pb-3"> *@
+@*         <div class="input-group-prepend"> *@
+@*             <span class="input-group-text">Message</span> *@
+@*         </div> *@
+@*         <input class="form-control" *@
+@*             placeholder="No ideas? Send an empty one!" *@
+@*             @bind-value="locals.Message" /> *@
+@*         <div class="input-group-append"> *@
+@*             <button type="submit" class="btn btn-success">Send</button> *@
+@*         </div> *@
+@*     </div> *@
+@* </form> *@
+
+@code {
+
+
+    bool success;
+    string[] errors = { };
+    MudTextField<string> pwField1;
+    MudForm form;
+
+    private IEnumerable<string> PasswordStrength(string pw)
+    {
+        if (string.IsNullOrWhiteSpace(pw))
+        {
+            yield return "Password is required!";
+            yield break;
+        }
+        if (pw.Length < 8)
+            yield return "Password must be at least of length 8";
+        if (!Regex.IsMatch(pw, @"[A-Z]"))
+            yield return "Password must contain at least one capital letter";
+        if (!Regex.IsMatch(pw, @"[a-z]"))
+            yield return "Password must contain at least one lowercase letter";
+        if (!Regex.IsMatch(pw, @"[0-9]"))
+            yield return "Password must contain at least one digit";
+    }
+
+    private string PasswordMatch(string arg)
+    {
+        if (pwField1.Value != arg)
+            return "Passwords don't match";
+        return null;
+    }
+    public class LocalsModel
+    {
+        
+        
+                private string _name = "";
+
+        public string Name {
+            get => _name;
+            set {
+                _name = value;
+                IsNameModified = true;
+            }
+        }
+
+        public bool IsNameModified { get; set; }
+        public string Message { get; set; } = "";
+        public Exception? Error { get; set; }
+    }
+
+    public class Model
+    {
+        public long UserCount { get; set; }
+        public long ActiveUserCount { get; set; }
+        public ChatUser? ChatUser { get; set; }
+        public ChatPage LastPage { get; set; } = new();
+    }
+
+    protected override async Task<Model> ComputeStateAsync(CancellationToken cancellationToken)
+    {
+        var userCount = await ChatService.GetUserCountAsync(cancellationToken);
+        var activeUserCount = await ChatService.GetActiveUserCountAsync(cancellationToken);
+        var chatUser = await ClientState.ChatUser.UseAsync(cancellationToken);
+        var lastPage = await ChatService.GetChatTailAsync(30, cancellationToken);
+        if (!Locals.Value.IsNameModified)
+            ResetName(chatUser?.Name ?? "");
+        return new Model() {
+            UserCount = userCount,
+            ActiveUserCount = activeUserCount,
+            ChatUser = chatUser,
+            LastPage = lastPage,
+        };
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        var chatUser = await ChatService.GetCurrentUserAsync(ClientState.Session);
+        if (chatUser == null)
+            await SetNameAsync();
+    }
+
+    private async Task SetNameAsync()
+    {
+        ResetError();
+        var locals = Locals.Value;
+        try {
+            await ChatService.SetUserNameAsync(new(locals.Name ?? "", ClientState.Session));
+        }
+        catch (Exception e) {
+            SetError(e);
+        }
+   }
+
+    private async Task SendMessageAsync()
+    {
+        ResetError();
+        try {
+            if (ClientState.ChatUser.Value == null)
+                throw new ApplicationException("Please set your name first.");
+            await ChatService.PostMessageAsync(new(Locals.Value.Message, ClientState.Session));
+            Locals.Value.Message = "";
+            TouchLocals();
+        }
+        catch (Exception e) {
+            SetError(e);
+        }
+    }
+
+    private void SignIn() => JSRuntime.InvokeVoidAsync("FusionAuth.signIn");
+    private void SignOut() => JSRuntime.InvokeVoidAsync("FusionAuth.signOut");
+
+    // Convenience shortcuts
+
+    private void ResetError()
+        => SetError(null);
+
+    private void ResetName(string name)
+    {
+        Locals.Value.Name = name;
+        Locals.Value.IsNameModified = false;
+        TouchLocals();
+    }
+
+    private void SetError(Exception? error)
+    {
+        Locals.Value.Error = error;
+        TouchLocals();
+    }
+
+    private void TouchLocals()
+        => Locals.Set(Locals.AsResult());
+}

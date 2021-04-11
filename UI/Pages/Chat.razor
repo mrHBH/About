@@ -1,0 +1,325 @@
+@using System.Threading
+@using StackExchange.Redis.Extensions.Utf8Json
+
+@inherits LiveComponentBase<Chat.Model, Chat.LocalsModel>
+@inject IChatService ChatService
+@inject ClientState ClientState
+@inject NavigationManager Navigator
+@inject IJSRuntime JSRuntime
+
+
+
+
+@{ var locals = Locals.Value;
+    var state = State.LastValue;
+    var lastPage = state.LastPage;
+    var error = State.Error;
+    var actualUserName = state.ChatUser?.Name; }
+
+
+<MudCard>
+    <MudCardMedia Image="https://source.unsplash.com/1600x900/?mars" />
+    <MudCardContent>
+        <h1 class="display-4">
+            Hamza Ben Hassen
+            <a href="https://digitalPlayground.ben-hassen.com" target="_blank"></a>
+
+        </h1>
+        
+        @* <ActiveComponents>@this</ActiveComponents> *@
+
+        <MudText Typo="Typo.body2">Welcome to my Digital Portfolio, I try to illustrate my capabilities and my work interests</MudText>
+          <MudText Typo="Typo.body2">Controls : c toggle camera </MudText>
+        <MudText Typo="Typo.body2">Controls : h reset bird view camera </MudText>
+          <MudText Typo="Typo.body2">Controls : mouse left/right  pan/rotate birdview camera  </MudText>
+        <MudText Typo="Typo.body2">Controls : qzds move blue man </MudText>
+         <MudText Typo="Typo.body2">Controls : b clone blue man </MudText>
+            <MudText Typo="Typo.body2">Controls : f create foliage </MudText>
+         <MudText Typo="Typo.body2">Controls : v create pink woman </MudText>
+        <MudText Typo="Typo.body2">Version 0.9a , Build 1134 Time:<ServerTime> </ServerTime></MudText>            
+        <StatefulComponentState Component="@this" />
+    </MudCardContent>
+    <MudCardActions>
+   
+    </MudCardActions>
+</MudCard>
+
+
+
+@foreach (var widget in _components)
+{
+    @switch (widget)
+    {
+        case Education:
+            <Education/>
+            break; 
+        case MultiFrame:
+            <MultiFrame/>
+            break;
+    }
+}
+
+
+
+  <style>
+      
+       .glide__slidess {
+              background-color: pink;
+              border: 1px solid blue;
+              margin: 0 5px;
+              height: 100%;
+              display: list-item;
+            }
+      
+      .glide__slide {
+        
+
+   
+        height: 100%;
+        display: list-item;
+      }
+      #cliContainer{
+       width: 100%;
+               min-height: 300px;
+               margin-bottom: 60px;
+               height: 50%;
+          
+               box-shadow: rgba(0, 0, 0, 0.42) 5px 5px 25px;
+               font-size: 14px;
+               font-family: 'Fira Mono', Consolas, Menlo, Monaco, 'Courier New', Courier, monospace;
+               border-radius: 4px;
+               padding: 75px 25px 35px;
+               position: relative;
+                   overflow-y: scroll;  !important;
+                        display: block;                             
+               -webkit-box-sizing: border-box;
+                       box-sizing: border-box;
+           
+               -ms-overflow-style: none;  // IE 10+
+              
+      
+      
+      } 
+      .glide__arrow--next {
+        top: 50%;
+        right: 0%;
+        position: fixed
+      }
+        .glide__arrow--prev {
+         top: 50%;
+                left: auto;
+                position: fixed
+            }
+      
+
+    </style>
+
+
+
+@code { 
+    
+    readonly List<IComponent> _components = new List<IComponent>
+    {
+        new Education(),
+     //   new MultiFrame()
+        
+    };
+
+    private static IJSObjectReference RuntimeContainer;
+    private static IJSObjectReference mainJS;
+private static IJSObjectReference UIman;
+ 
+    
+        const string ImportPath = "../js/stats.module.js";
+
+  
+   
+    [JSInvokable]
+    public async void initializedfromJs()
+    {
+        Console.WriteLine(("called csharp from Js"));
+    }
+
+    [JSInvokable]
+    public async void registerUImanager()
+    {
+        Console.WriteLine(("registering"));
+        UIman = await mainJS.InvokeAsync<IJSObjectReference>("returnUIman");
+     
+        Console.WriteLine(("registered UI man"));
+    }
+
+
+    // public async ValueTask DisposeAsync()
+    // {
+    //
+    //     await mainJS.DisposeAsync();
+    //     await RuntimeContainer.DisposeAsync();
+    //     Console.WriteLine(("disposed"));
+    //
+    // }
+
+    public class UpdateRequest
+    {
+        public string ID { get; set; }
+        public int RequestType { get; set; }
+        public string Data { get; set; }
+
+    }
+
+
+    //
+    // [Parameter]
+    // public IJSObjectReference LocalPlaygroundInstance { get; set; } = null!;
+
+
+    public class LocalsModel
+    {
+        private string _name = "";
+        
+        public string Name
+        {
+            get => _name;
+            set
+            {
+                _name = value;
+                IsNameModified = true;
+            }
+        }
+
+        public bool IsNameModified { get; set; }
+        public string Message { get; set; } = "";
+        public Exception? Error { get; set; }
+    }
+
+    public class Model
+    {
+        public long UserCount { get; set; }
+        public long ActiveUserCount { get; set; }
+        public ChatUser? ChatUser { get; set; }
+        public ChatPage LastPage { get; set; } = new();
+        
+    }
+
+    protected override async Task<Model> ComputeStateAsync(CancellationToken cancellationToken)
+    {
+        var userCount = await ChatService.GetUserCountAsync(cancellationToken);
+        var activeUserCount = await ChatService.GetActiveUserCountAsync(cancellationToken);
+        var chatUser = await ClientState.ChatUser.UseAsync(cancellationToken);
+        var lastPage = await ChatService.GetChatTailAsync(10, cancellationToken);
+        if (!Locals.Value.IsNameModified)
+            ResetName(chatUser?.Name ?? "");
+        return new Model()
+        {
+            UserCount = userCount,
+            ActiveUserCount = activeUserCount,
+            ChatUser = chatUser,
+            LastPage = lastPage,
+        };
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+
+
+        var chatUser = await ChatService.GetCurrentUserAsync(ClientState.Session);
+        if (chatUser == null)
+            await SetNameAsync();
+        
+  
+          
+    }
+    
+    protected override async void OnAfterRender(bool firstRender)
+    {
+        //mainDotnet.Create(this); 
+        if (!firstRender) return;
+        RuntimeContainer = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "../js/HBH01/HBH02.js");
+        mainJS = await RuntimeContainer.InvokeAsync<IJSObjectReference>("init", DotNetObjectReference.Create(this));
+       
+    }
+     
+  
+    [JSInvokable]
+    public async Task hello_LiveStateHandler(object ob)
+    {
+        // Console.WriteLine(ob);
+        UpdateRequest a = Utf8Json.JsonSerializer.Deserialize<UpdateRequest>(ob.ToString());
+        //Console.WriteLine("deserialized" + a.ID + " " + a.RequestType);
+        await mainJS.InvokeVoidAsync("_registerPlayer", "idMaster");
+
+        //  Console.WriteLine(a.Data.ToString() + " " + a.RequestType.ToString());
+        ResetError();
+        try
+        {
+
+
+           // if (ClientState.ChatUser.Value == null)
+           //     throw new ApplicationException("Please set your name first.");
+           // await ChatService.PostMessageAsync(new("Command: " + ob.ToString(), ClientState.Session));
+            Locals.Value.Message = "";
+            TouchLocals();
+
+        }
+        catch (Exception e)
+        {
+            SetError(e);
+        }
+    }
+
+    private async Task SetNameAsync()
+    {
+        ResetError();
+        var locals = Locals.Value;
+        try
+        {  // await LocalPlaygroundInstance.InvokeVoidAsync("helloFromLiveComponent", DotNetObjectReference.Create(this));
+            await mainJS.InvokeVoidAsync("_registerPlayer", "idMaster");
+            await ChatService.SetUserNameAsync(new(locals.Name ?? "", ClientState.Session));
+        }
+        catch (Exception e)
+        {
+            SetError(e);
+        }
+    }
+
+    private async Task SendMessageAsync()
+    {
+        ResetError();
+        try
+        {
+            if (ClientState.ChatUser.Value == null)
+                throw new ApplicationException("Please set your name first.");
+            await ChatService.PostMessageAsync(new(Locals.Value.Message, ClientState.Session));
+            Locals.Value.Message = "";
+            TouchLocals();
+         
+        }
+        catch (Exception e)
+        {
+            SetError(e);
+        }
+    }
+
+    private void SignIn() => JSRuntime.InvokeVoidAsync("FusionAuth.signIn");
+    private void SignOut() => JSRuntime.InvokeVoidAsync("FusionAuth.signOut");
+
+    // Convenience shortcuts
+
+    private void ResetError()
+        => SetError(null);
+
+    private void ResetName(string name)
+    {
+        Locals.Value.Name = name;
+        Locals.Value.IsNameModified = false;
+        TouchLocals();
+    }
+
+    private void SetError(Exception? error)
+    {
+        Locals.Value.Error = error;
+        TouchLocals();
+    }
+
+    private void TouchLocals()
+        => Locals.Set(Locals.AsResult()); }
